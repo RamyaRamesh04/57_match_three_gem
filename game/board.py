@@ -14,7 +14,6 @@ GEM_COLORS = [
 
 
 class Gem:
-   
     def __init__(self, color, target_row, col):
         self.color = color
         self.target_row = target_row
@@ -122,7 +121,10 @@ class Board:
         return matched
 
     def drop_and_refill(self):
+        for c in range(GRID_SIZE):
             empty_slots = 0
+
+            # Process this column from bottom to top
             for r in range(GRID_SIZE - 1, -1, -1):
                 if self.grid[r][c] is None:
                     empty_slots += 1
