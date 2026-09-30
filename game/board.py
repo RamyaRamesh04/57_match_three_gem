@@ -20,6 +20,10 @@ class Gem:
         self.target_row = target_row
         self.col = col
 
+        # Task 3: Bomb Gem properties
+        self.is_bomb = False
+        self.bomb_direction = None
+
         # Start higher up to animate falling down
         self.current_y = (target_row - 2) * TILE_SIZE
         self.target_y = target_row * TILE_SIZE
@@ -108,11 +112,13 @@ class Board:
             self.grid[r1][c1].target_row = r1
             self.grid[r1][c1].target_y = r1 * TILE_SIZE
             self.grid[r1][c1].current_y = r1 * TILE_SIZE
+            self.grid[r1][c1].col = c1
 
         if self.grid[r2][c2]:
             self.grid[r2][c2].target_row = r2
             self.grid[r2][c2].target_y = r2 * TILE_SIZE
             self.grid[r2][c2].current_y = r2 * TILE_SIZE
+            self.grid[r2][c2].col = c2
 
     def is_adjacent(self, pos1, pos2):
         r1, c1 = pos1
@@ -121,7 +127,7 @@ class Board:
         return abs(r1 - r2) + abs(c1 - c2) == 1
 
     def find_matches(self):
-        """Scan grid for horizontal and vertical 3-in-a-row color matches."""
+        """Scan grid for horizontal and vertical 3-in-a-row matches."""
 
         matched = set()
 
@@ -163,6 +169,119 @@ class Board:
 
         return matched
 
+    def find_four_matches(self):
+        """
+        Task 3:
+        Find horizontal and vertical runs containing at least 4
+        gems of the same color.
+
+        Returns:
+            List of tuples:
+            (positions, direction)
+        """
+
+        four_matches = []
+
+        # Horizontal runs
+        for r in range(GRID_SIZE):
+            c = 0
+
+            while c < GRID_SIZE:
+                if self.grid[r][c] is None:
+                    c += 1
+                    continue
+
+                color = self.grid[r][c].color
+                start = c
+
+                while (
+                    c < GRID_SIZE
+                    and self.grid[r][c] is not None
+                    and self.grid[r][c].color == color
+                ):
+                    c += 1
+
+                length = c - start
+
+                if length >= 4:
+                    positions = [
+                        (r, col)
+                        for col in range(start, c)
+                    ]
+                    four_matches.append(
+                        (positions, "row")
+                    )
+
+        # Vertical runs
+        for c in range(GRID_SIZE):
+            r = 0
+
+            while r < GRID_SIZE:
+                if self.grid[r][c] is None:
+                    r += 1
+                    continue
+
+                color = self.grid[r][c].color
+                start = r
+
+                while (
+                    r < GRID_SIZE
+                    and self.grid[r][c] is not None
+                    and self.grid[r][c].color == color
+                ):
+                    r += 1
+
+                length = r - start
+
+                if length >= 4:
+                    positions = [
+                        (row, c)
+                        for row in range(start, r)
+                    ]
+                    four_matches.append(
+                        (positions, "column")
+                    )
+
+        return four_matches
+
+    def activate_bomb(self, position, matched):
+        """
+        Task 3:
+        Activate a Bomb Gem and add its complete row or column
+        to the matched set.
+        """
+
+        r, c = position
+        gem = self.grid[r][c]
+
+        if not gem or not gem.is_bomb:
+            return
+
+        if gem.bomb_direction == "row":
+
+            for col in range(GRID_SIZE):
+                if self.grid[r][col]:
+                    matched.add((r, col))
+
+        elif gem.bomb_direction == "column":
+
+            for row in range(GRID_SIZE):
+                if self.grid[row][c]:
+                    matched.add((row, c))
+
+    def create_bomb(self, position, direction):
+        """
+        Task 3:
+        Convert a normal gem into a Bomb Gem.
+        """
+
+        r, c = position
+        gem = self.grid[r][c]
+
+        if gem:
+            gem.is_bomb = True
+            gem.bomb_direction = direction
+
     def drop_and_refill(self):
         """Drop existing gems down and create new gems at the top."""
 
@@ -182,6 +301,7 @@ class Board:
 
                     gem.target_row = r + empty_slots
                     gem.target_y = (r + empty_slots) * TILE_SIZE
+                    gem.col = c
 
                     self.grid[r + empty_slots][c] = gem
                     self.grid[r][c] = None
@@ -207,7 +327,10 @@ class Board:
         First match  = 1x
         Second match = 2x
         Third match  = 3x
-        etc.
+
+        Task 3:
+        A 4-in-a-row creates a Bomb Gem.
+        Existing Bomb Gems can clear their row or column.
         """
 
         total_cleared = 0
@@ -222,10 +345,56 @@ class Board:
             if not matches:
                 break
 
-            # Number of gems cleared in this cascade
+            # -------------------------------------------------
+            # Task 3: Detect Bomb Gem activations
+            # -------------------------------------------------
+
+            original_matches = set(matches)
+
+            for position in list(original_matches):
+
+                r, c = position
+                gem = self.grid[r][c]
+
+                if gem and gem.is_bomb:
+                    self.activate_bomb(position, matches)
+
+            # -------------------------------------------------
+            # Task 3: Detect 4-in-a-row matches
+            # -------------------------------------------------
+
+            four_matches = self.find_four_matches()
+
+            bombs_to_create = []
+
+            for positions, direction in four_matches:
+
+                # If this 4-match already contains an existing
+                # bomb, let the existing bomb handle activation.
+                existing_bomb = False
+
+                for position in positions:
+                    r, c = position
+                    gem = self.grid[r][c]
+
+                    if gem and gem.is_bomb:
+                        existing_bomb = True
+                        break
+
+                if not existing_bomb:
+                    # Choose the middle gem as the Bomb Gem.
+                    bomb_position = positions[len(positions) // 2]
+
+                    bombs_to_create.append(
+                        (bomb_position, direction)
+                    )
+
+            # -------------------------------------------------
+            # Task 2: Cascade scoring
+            # -------------------------------------------------
+
             cleared = len(matches)
 
-            # Task 2: apply current cascade multiplier
             self.score += (
                 cleared
                 * 10
@@ -234,9 +403,39 @@ class Board:
 
             total_cleared += cleared
 
+            # -------------------------------------------------
             # Remove matched gems
+            # -------------------------------------------------
+
+            bomb_positions = set(
+                position
+                for position, direction in bombs_to_create
+            )
+
             for r, c in matches:
-                self.grid[r][c] = None
+
+                if (r, c) not in bomb_positions:
+                    self.grid[r][c] = None
+
+            # -------------------------------------------------
+            # Create Bomb Gems after clearing the match.
+            #
+            # The selected gem position was kept instead of
+            # being removed.
+            # -------------------------------------------------
+
+            for position, direction in bombs_to_create:
+
+                r, c = position
+
+                # The original gem is still present because we
+                # excluded this position from the clearing step.
+                if self.grid[r][c]:
+
+                    self.create_bomb(
+                        position,
+                        direction
+                    )
 
             # Drop gems and refill empty spaces
             self.drop_and_refill()
@@ -259,6 +458,10 @@ class Board:
 
         Task 2:
         Cascade scoring is handled by resolve_matches().
+
+        Task 3:
+        Bomb Gems can participate in matches and activate
+        their row or column.
         """
 
         if (
@@ -274,9 +477,24 @@ class Board:
         # Check whether the swap creates a match
         matches = self.find_matches()
 
+        # Task 3:
+        # A Bomb Gem can also be activated when it is involved
+        # in a valid swap.
+        r1, c1 = pos1
+        r2, c2 = pos2
+
+        gem1 = self.grid[r1][c1]
+        gem2 = self.grid[r2][c2]
+
+        bomb_swap = (
+            (gem1 and gem1.is_bomb)
+            or
+            (gem2 and gem2.is_bomb)
+        )
+
         # Invalid swap:
         # revert it and do NOT consume a move.
-        if not matches:
+        if not matches and not bomb_swap:
             self.swap_gems(pos1, pos2)
             return False
 
@@ -285,7 +503,9 @@ class Board:
         self.moves_remaining -= 1
 
         # Resolve the complete cascade.
-        # resolve_matches() handles 1x, 2x, 3x, ...
+        # resolve_matches() handles:
+        # 1x, 2x, 3x, ...
+        # and Bomb Gem activation.
         self.resolve_matches()
 
         return True
@@ -355,6 +575,7 @@ class Board:
                         TILE_SIZE - 4
                     )
 
+                    # Normal gem
                     pygame.draw.rect(
                         surface,
                         gem.color,
@@ -369,6 +590,62 @@ class Board:
                         width=1,
                         border_radius=10
                     )
+
+                    # -------------------------------------------------
+                    # Task 3: Bomb Gem visual
+                    # -------------------------------------------------
+
+                    if gem.is_bomb:
+
+                        center_x = x + TILE_SIZE // 2
+                        center_y = int(
+                            y + TILE_SIZE // 2
+                        )
+
+                        # White circle inside the gem
+                        pygame.draw.circle(
+                            surface,
+                            (255, 255, 255),
+                            (center_x, center_y),
+                            17
+                        )
+
+                        # Dark inner circle
+                        pygame.draw.circle(
+                            surface,
+                            (30, 30, 30),
+                            (center_x, center_y),
+                            11
+                        )
+
+                        # Cross to make the Bomb Gem obvious
+                        pygame.draw.line(
+                            surface,
+                            (255, 255, 255),
+                            (
+                                center_x - 7,
+                                center_y - 7
+                            ),
+                            (
+                                center_x + 7,
+                                center_y + 7
+                            ),
+                            3
+                        )
+
+                        pygame.draw.line(
+                            surface,
+                            (255, 255, 255),
+                            (
+                                center_x + 7,
+                                center_y - 7
+                            ),
+                            (
+                                center_x - 7,
+                                center_y + 7
+                            ),
+                            3
+                        )
 
                 if self.selected == (r, c):
 
