@@ -41,7 +41,7 @@ class Gem:
 
 
 class Board:
-    """Manages animated gem grid, gravity drops, score, and game limits."""
+    """Manages animated gem grid, score, and game limits."""
 
     def __init__(self, offset_x, offset_y, target_score=500, max_moves=20):
         self.offset_x = offset_x
@@ -61,6 +61,12 @@ class Board:
         # Task 2: Cascade multiplier
         self.cascade_multiplier = 1
 
+        # Task 4: Idle hint
+        self.idle_hint_delay = 5000
+        self.last_interaction_time = pygame.time.get_ticks()
+        self.hint_pair = None
+        self.hint_pulse = 0
+
         self.reset()
 
     def reset(self):
@@ -73,8 +79,14 @@ class Board:
         # Reset cascade multiplier
         self.cascade_multiplier = 1
 
+        # Task 4: Reset idle hint
+        self.last_interaction_time = pygame.time.get_ticks()
+        self.hint_pair = None
+        self.hint_pulse = 0
+
         for r in range(GRID_SIZE):
             for c in range(GRID_SIZE):
+
                 color = random.choice(GEM_COLORS)
 
                 gem = Gem(color, r, c)
@@ -87,11 +99,16 @@ class Board:
         # Reset after initial board setup.
         self.cascade_multiplier = 1
 
+        # Task 4: Start idle timer after board setup.
+        self.last_interaction_time = pygame.time.get_ticks()
+        self.hint_pair = None
+
     def is_animating(self):
         """Returns True if any gem is currently dropping down."""
 
         for r in range(GRID_SIZE):
             for c in range(GRID_SIZE):
+
                 if self.grid[r][c] and self.grid[r][c].is_animating():
                     return True
 
@@ -109,18 +126,21 @@ class Board:
         self.grid[r1][c1], self.grid[r2][c2] = g2, g1
 
         if self.grid[r1][c1]:
+
             self.grid[r1][c1].target_row = r1
             self.grid[r1][c1].target_y = r1 * TILE_SIZE
             self.grid[r1][c1].current_y = r1 * TILE_SIZE
             self.grid[r1][c1].col = c1
 
         if self.grid[r2][c2]:
+
             self.grid[r2][c2].target_row = r2
             self.grid[r2][c2].target_y = r2 * TILE_SIZE
             self.grid[r2][c2].current_y = r2 * TILE_SIZE
             self.grid[r2][c2].col = c2
 
     def is_adjacent(self, pos1, pos2):
+
         r1, c1 = pos1
         r2, c2 = pos2
 
@@ -133,6 +153,7 @@ class Board:
 
         # Horizontal matches
         for r in range(GRID_SIZE):
+
             for c in range(GRID_SIZE - 2):
 
                 if (
@@ -143,6 +164,7 @@ class Board:
                     == self.grid[r][c + 1].color
                     == self.grid[r][c + 2].color
                 ):
+
                     matched.update([
                         (r, c),
                         (r, c + 1),
@@ -151,6 +173,7 @@ class Board:
 
         # Vertical matches
         for r in range(GRID_SIZE - 2):
+
             for c in range(GRID_SIZE):
 
                 if (
@@ -161,6 +184,7 @@ class Board:
                     == self.grid[r + 1][c].color
                     == self.grid[r + 2][c].color
                 ):
+
                     matched.update([
                         (r, c),
                         (r + 1, c),
@@ -172,21 +196,19 @@ class Board:
     def find_four_matches(self):
         """
         Task 3:
-        Find horizontal and vertical runs containing at least 4
-        gems of the same color.
-
-        Returns:
-            List of tuples:
-            (positions, direction)
+        Find horizontal and vertical runs containing at least
+        4 gems of the same color.
         """
 
         four_matches = []
 
         # Horizontal runs
         for r in range(GRID_SIZE):
+
             c = 0
 
             while c < GRID_SIZE:
+
                 if self.grid[r][c] is None:
                     c += 1
                     continue
@@ -204,19 +226,23 @@ class Board:
                 length = c - start
 
                 if length >= 4:
+
                     positions = [
                         (r, col)
                         for col in range(start, c)
                     ]
+
                     four_matches.append(
                         (positions, "row")
                     )
 
         # Vertical runs
         for c in range(GRID_SIZE):
+
             r = 0
 
             while r < GRID_SIZE:
+
                 if self.grid[r][c] is None:
                     r += 1
                     continue
@@ -234,10 +260,12 @@ class Board:
                 length = r - start
 
                 if length >= 4:
+
                     positions = [
                         (row, c)
                         for row in range(start, r)
                     ]
+
                     four_matches.append(
                         (positions, "column")
                     )
@@ -245,11 +273,7 @@ class Board:
         return four_matches
 
     def activate_bomb(self, position, matched):
-        """
-        Task 3:
-        Activate a Bomb Gem and add its complete row or column
-        to the matched set.
-        """
+        """Task 3: Activate a Bomb Gem."""
 
         r, c = position
         gem = self.grid[r][c]
@@ -260,25 +284,25 @@ class Board:
         if gem.bomb_direction == "row":
 
             for col in range(GRID_SIZE):
+
                 if self.grid[r][col]:
                     matched.add((r, col))
 
         elif gem.bomb_direction == "column":
 
             for row in range(GRID_SIZE):
+
                 if self.grid[row][c]:
                     matched.add((row, c))
 
     def create_bomb(self, position, direction):
-        """
-        Task 3:
-        Convert a normal gem into a Bomb Gem.
-        """
+        """Task 3: Convert a normal gem into a Bomb Gem."""
 
         r, c = position
         gem = self.grid[r][c]
 
         if gem:
+
             gem.is_bomb = True
             gem.bomb_direction = direction
 
@@ -293,6 +317,7 @@ class Board:
             for r in range(GRID_SIZE - 1, -1, -1):
 
                 if self.grid[r][c] is None:
+
                     empty_slots += 1
 
                 elif empty_slots > 0:
@@ -329,8 +354,7 @@ class Board:
         Third match  = 3x
 
         Task 3:
-        A 4-in-a-row creates a Bomb Gem.
-        Existing Bomb Gems can clear their row or column.
+        4-in-a-row creates a Bomb Gem.
         """
 
         total_cleared = 0
@@ -345,10 +369,7 @@ class Board:
             if not matches:
                 break
 
-            # -------------------------------------------------
-            # Task 3: Detect Bomb Gem activations
-            # -------------------------------------------------
-
+            # Task 3: Bomb activation
             original_matches = set(matches)
 
             for position in list(original_matches):
@@ -359,40 +380,37 @@ class Board:
                 if gem and gem.is_bomb:
                     self.activate_bomb(position, matches)
 
-            # -------------------------------------------------
-            # Task 3: Detect 4-in-a-row matches
-            # -------------------------------------------------
-
+            # Task 3: Find 4-in-a-row
             four_matches = self.find_four_matches()
 
             bombs_to_create = []
 
             for positions, direction in four_matches:
 
-                # If this 4-match already contains an existing
-                # bomb, let the existing bomb handle activation.
                 existing_bomb = False
 
                 for position in positions:
+
                     r, c = position
                     gem = self.grid[r][c]
 
                     if gem and gem.is_bomb:
+
                         existing_bomb = True
                         break
 
                 if not existing_bomb:
-                    # Choose the middle gem as the Bomb Gem.
-                    bomb_position = positions[len(positions) // 2]
+
+                    # Choose middle gem for Bomb Gem
+                    bomb_position = positions[
+                        len(positions) // 2
+                    ]
 
                     bombs_to_create.append(
                         (bomb_position, direction)
                     )
 
-            # -------------------------------------------------
             # Task 2: Cascade scoring
-            # -------------------------------------------------
-
             cleared = len(matches)
 
             self.score += (
@@ -403,10 +421,7 @@ class Board:
 
             total_cleared += cleared
 
-            # -------------------------------------------------
-            # Remove matched gems
-            # -------------------------------------------------
-
+            # Remove matched gems except Bomb positions
             bomb_positions = set(
                 position
                 for position, direction in bombs_to_create
@@ -415,21 +430,14 @@ class Board:
             for r, c in matches:
 
                 if (r, c) not in bomb_positions:
+
                     self.grid[r][c] = None
 
-            # -------------------------------------------------
-            # Create Bomb Gems after clearing the match.
-            #
-            # The selected gem position was kept instead of
-            # being removed.
-            # -------------------------------------------------
-
+            # Create Bomb Gems
             for position, direction in bombs_to_create:
 
                 r, c = position
 
-                # The original gem is still present because we
-                # excluded this position from the clearing step.
                 if self.grid[r][c]:
 
                     self.create_bomb(
@@ -437,17 +445,104 @@ class Board:
                         direction
                     )
 
-            # Drop gems and refill empty spaces
+            # Drop gems and refill
             self.drop_and_refill()
 
-            # Next automatic match gets a higher multiplier
+            # Next cascade gets higher multiplier
             self.cascade_multiplier += 1
 
-        # Chain is finished.
-        # Reset multiplier for the next swap.
+        # Reset multiplier
         self.cascade_multiplier = 1
 
         return total_cleared
+
+    # =========================================================
+    # TASK 4: IDLE HINT
+    # =========================================================
+
+    def reset_idle_timer(self):
+        """Reset the idle timer and remove the current hint."""
+
+        self.last_interaction_time = pygame.time.get_ticks()
+        self.hint_pair = None
+        self.hint_pulse = 0
+
+    def find_hint_move(self):
+        """
+        Find an adjacent swap that creates a match.
+
+        Returns:
+            ((r1, c1), (r2, c2)) if a valid move exists.
+            None otherwise.
+        """
+
+        for r in range(GRID_SIZE):
+
+            for c in range(GRID_SIZE):
+
+                current = (r, c)
+
+                # Check right neighbour
+                if c + 1 < GRID_SIZE:
+
+                    other = (r, c + 1)
+
+                    if self._swap_creates_match(current, other):
+
+                        return current, other
+
+                # Check bottom neighbour
+                if r + 1 < GRID_SIZE:
+
+                    other = (r + 1, c)
+
+                    if self._swap_creates_match(current, other):
+
+                        return current, other
+
+        return None
+
+    def _swap_creates_match(self, pos1, pos2):
+        """Check whether a temporary swap creates a match."""
+
+        if not self.grid[pos1[0]][pos1[1]]:
+            return False
+
+        if not self.grid[pos2[0]][pos2[1]]:
+            return False
+
+        self.swap_gems(pos1, pos2)
+
+        matches = self.find_matches()
+
+        self.swap_gems(pos1, pos2)
+
+        return bool(matches)
+
+    def update_hint(self):
+        """Show a hint after 5 seconds of inactivity."""
+
+        current_time = pygame.time.get_ticks()
+
+        idle_time = (
+            current_time
+            - self.last_interaction_time
+        )
+
+        # Do not show hint while board is moving.
+        if self.is_animating():
+            self.hint_pair = None
+            return
+
+        if idle_time >= self.idle_hint_delay:
+
+            if self.hint_pair is None:
+
+                self.hint_pair = self.find_hint_move()
+
+        else:
+
+            self.hint_pair = None
 
     def process_swap(self, pos1, pos2):
         """
@@ -460,26 +555,30 @@ class Board:
         Cascade scoring is handled by resolve_matches().
 
         Task 3:
-        Bomb Gems can participate in matches and activate
-        their row or column.
+        Bomb Gems can participate in matches.
+
+        Task 4:
+        Any swap attempt resets the idle hint timer.
         """
+
+        # Task 4: Player interaction resets hint
+        self.reset_idle_timer()
 
         if (
             not self.is_adjacent(pos1, pos2)
             or self.is_game_over()
             or self.is_animating()
         ):
+
             return False
 
         # Perform the swap
         self.swap_gems(pos1, pos2)
 
-        # Check whether the swap creates a match
+        # Check whether swap creates a match
         matches = self.find_matches()
 
-        # Task 3:
-        # A Bomb Gem can also be activated when it is involved
-        # in a valid swap.
+        # Task 3: Bomb activation
         r1, c1 = pos1
         r2, c2 = pos2
 
@@ -495,22 +594,22 @@ class Board:
         # Invalid swap:
         # revert it and do NOT consume a move.
         if not matches and not bomb_swap:
+
             self.swap_gems(pos1, pos2)
+
             return False
 
         # Valid swap:
         # consume exactly one move.
         self.moves_remaining -= 1
 
-        # Resolve the complete cascade.
-        # resolve_matches() handles:
-        # 1x, 2x, 3x, ...
-        # and Bomb Gem activation.
+        # Resolve complete cascade
         self.resolve_matches()
 
         return True
 
     def is_game_over(self):
+
         return (
             self.score >= self.target_score
             or self.moves_remaining <= 0
@@ -529,10 +628,20 @@ class Board:
     def update(self):
 
         for r in range(GRID_SIZE):
+
             for c in range(GRID_SIZE):
 
                 if self.grid[r][c]:
+
                     self.grid[r][c].update()
+
+        # Task 4: Update idle hint
+        self.update_hint()
+
+        # Task 4: Pulse animation
+        if self.hint_pair:
+
+            self.hint_pulse += 0.12
 
     def render(self, surface):
 
@@ -559,6 +668,7 @@ class Board:
         )
 
         for r in range(GRID_SIZE):
+
             for c in range(GRID_SIZE):
 
                 gem = self.grid[r][c]
@@ -591,18 +701,21 @@ class Board:
                         border_radius=10
                     )
 
-                    # -------------------------------------------------
+                    # =================================================
                     # Task 3: Bomb Gem visual
-                    # -------------------------------------------------
+                    # =================================================
 
                     if gem.is_bomb:
 
-                        center_x = x + TILE_SIZE // 2
+                        center_x = (
+                            x + TILE_SIZE // 2
+                        )
+
                         center_y = int(
                             y + TILE_SIZE // 2
                         )
 
-                        # White circle inside the gem
+                        # White circle
                         pygame.draw.circle(
                             surface,
                             (255, 255, 255),
@@ -610,7 +723,7 @@ class Board:
                             17
                         )
 
-                        # Dark inner circle
+                        # Dark center
                         pygame.draw.circle(
                             surface,
                             (30, 30, 30),
@@ -618,7 +731,7 @@ class Board:
                             11
                         )
 
-                        # Cross to make the Bomb Gem obvious
+                        # Cross
                         pygame.draw.line(
                             surface,
                             (255, 255, 255),
@@ -647,10 +760,64 @@ class Board:
                             3
                         )
 
+                # =====================================================
+                # Task 4: Hint highlight
+                # =====================================================
+
+                if self.hint_pair and (r, c) in self.hint_pair:
+
+                    pulse = (
+                        abs(
+                            pygame.math.Vector2(
+                                1, 0
+                            ).rotate(
+                                self.hint_pulse * 100
+                            ).x
+                        )
+                    )
+
+                    # Keep the border thickness between 3 and 7.
+                    hint_width = 3 + int(
+                        pulse * 4
+                    )
+
+                    hint_x = (
+                        self.offset_x
+                        + c * TILE_SIZE
+                    )
+
+                    hint_y = (
+                        self.offset_y
+                        + r * TILE_SIZE
+                    )
+
+                    hint_rect = pygame.Rect(
+                        hint_x + 3,
+                        hint_y + 3,
+                        TILE_SIZE - 6,
+                        TILE_SIZE - 6
+                    )
+
+                    pygame.draw.rect(
+                        surface,
+                        (255, 255, 255),
+                        hint_rect,
+                        width=hint_width,
+                        border_radius=10
+                    )
+
+                # Selected gem
                 if self.selected == (r, c):
 
-                    sel_x = self.offset_x + c * TILE_SIZE
-                    sel_y = self.offset_y + r * TILE_SIZE
+                    sel_x = (
+                        self.offset_x
+                        + c * TILE_SIZE
+                    )
+
+                    sel_y = (
+                        self.offset_y
+                        + r * TILE_SIZE
+                    )
 
                     sel_rect = pygame.Rect(
                         sel_x + 2,
